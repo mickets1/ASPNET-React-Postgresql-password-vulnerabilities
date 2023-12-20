@@ -307,6 +307,6 @@ __pycache__/
 
 # End of https://www.toptal.com/developers/gitignore/api/linux,visualstudiocode,aspnetcore
 
-*.Migrations
+Migrations
 *.bin
 *.obj
