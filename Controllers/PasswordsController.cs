@@ -58,60 +58,84 @@ namespace WebAPI.Controllers
             return password != null ? Ok(password) : NotFound();
         }
 
-        // Create a new Password
-        // POST: api/passwords/add
-        [HttpPost("add")]
-        public async Task<ActionResult<Password>> PostPassword([FromBody] JsonElement json)
+    // Create a new Password
+    // POST: api/passwords/add
+    [HttpPost("add")]
+    public async Task<ActionResult<Password>> PostPassword([FromBody] JsonElement json)
+    {
+        try
         {
-            try
+            // Validate that the input is a valid JSON
+            if (json.ValueKind != JsonValueKind.Object)
             {
-                // Validate that the input is a valid JSON
-                if (json.ValueKind != JsonValueKind.Object)
+                return BadRequest("Invalid JSON format");
+            }
+
+            // Parse JSON input
+            var password = new Password
+            {
+                Password_value = json.GetProperty("password_value").GetString(),
+                Strength = int.TryParse(json.GetProperty("strength").GetString(), out var strength) ? strength : 0,
+                Font_size = int.TryParse(json.GetProperty("font_size").GetString(), out var fontSize) ? fontSize : 0,
+                Value = float.TryParse(json.GetProperty("value").GetString(), out var value) ? value : 0,
+                Offline_crack_sec = float.TryParse(json.GetProperty("offline_crack_sec").GetString(), out var offlineCrackSec) ? offlineCrackSec : 0,
+                Rank_alt = int.TryParse(json.GetProperty("rank_alt").GetString(), out var rankAlt) ? rankAlt : 0,
+            };
+
+            // Check if category name is provided in the JSON
+            if (json.TryGetProperty("category_name", out var categoryNameElement))
+            {
+                // Check if category already exists
+                // Avoid creating empty/duplicate entries
+                var existingCategory = await _context.Categories.FirstOrDefaultAsync(c => c.Category_name == categoryNameElement.GetString());
+                if (existingCategory == null)
                 {
-                    return BadRequest("Invalid JSON format");
+                    // If category doesn't exist, create a new one
+                    var category = new Category { Category_name = categoryNameElement.GetString() };
+                    _context.Categories.Add(category);
+                    password.Category = category;
                 }
-
-                var model = new Password
+                else
                 {
-                    Password_value = json.GetProperty("password_value").GetString(),
-                    Strength = int.TryParse(json.GetProperty("strength").GetString(), out var strength) ? strength : 0,
-                    Font_size = int.TryParse(json.GetProperty("font_size").GetString(), out var fontSize) ? fontSize : 0,
-                    Value = float.TryParse(json.GetProperty("value").GetString(), out var value) ? value : 0,
-                    Offline_crack_sec = float.TryParse(json.GetProperty("offline_crack_sec").GetString(), out var offlineCrackSec) ? offlineCrackSec : 0,
-                    Rank_alt = int.TryParse(json.GetProperty("rank_alt").GetString(), out var rankAlt) ? rankAlt : 0,
-                    Category_id = json.GetProperty("category_id").GetInt32(),
-                    Time_unit_id = json.GetProperty("time_unit_id").GetInt32()
-                };
-
-                // Add a new password
-                var password = new Password
-                {
-                    Password_value = model.Password_value,
-                    Strength = model.Strength,
-                    Font_size = model.Font_size,
-                    Value = model.Value,
-                    Offline_crack_sec = model.Offline_crack_sec,
-                    Rank_alt = model.Rank_alt,
-                    Category_id = model.Category_id,
-                    Time_unit_id = model.Time_unit_id
-                };
-
-                _context.Passwords.Add(password);
-                await _context.SaveChangesAsync();
-
-                return CreatedAtAction("GetPassword", new { id = password.Password_id }, password);
+                    password.Category_id = existingCategory.Category_id; // Set existing category ID for the password
+                }
             }
-            catch (Exception ex)
+
+            // Check if time unit name is provided in the JSON
+            if (json.TryGetProperty("time_unit_name", out var timeUnitNameElement))
             {
-                Console.WriteLine($"Error processing password: {ex.Message}");
-                return StatusCode(500, "Internal Server Error");
+                // Check if time unit already exists
+                // Avoid creating empty/duplicate entries
+                var existingTimeUnit = await _context.TimeUnits.FirstOrDefaultAsync(t => t.Time_unit_name == timeUnitNameElement.GetString());
+                if (existingTimeUnit == null)
+                {
+                    // If time unit doesn't exist, create a new one
+                    var timeUnit = new TimeUnit { Time_unit_name = timeUnitNameElement.GetString() };
+                    _context.TimeUnits.Add(timeUnit);
+                    password.TimeUnit = timeUnit; // Set time unit for the password
+                }
+                else
+                {
+                    password.Time_unit_id = existingTimeUnit.Time_unit_id;
+                }
             }
+
+            _context.Passwords.Add(password);
+            await _context.SaveChangesAsync();
+
+            return CreatedAtAction("GetPassword", new { id = password.Password_id }, password);
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error processing password: {ex.Message}");
+            return StatusCode(500, "Internal Server Error");
+        }
+    }
 
         // Update a specific password entity
         // PUT: api/passwords/{id}
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutPassword(int id, [FromBody] JsonElement json)
+       [HttpPut("{id}")]
+        public async Task<ActionResult> PutPassword(int id, [FromBody] JsonElement json)
         {
             try
             {
@@ -120,9 +144,13 @@ namespace WebAPI.Controllers
                 {
                     return BadRequest("Invalid JSON format");
                 }
+                
 
                 // Find the existing password by id
-                var existingPassword = await _context.Passwords.FindAsync(id);
+                var existingPassword = await _context.Passwords
+                    .Include(p => p.Category)
+                    .Include(p => p.TimeUnit)
+                    .FirstOrDefaultAsync(p => p.Password_id == id);
                 
                 if (existingPassword == null)
                 {
@@ -136,8 +164,33 @@ namespace WebAPI.Controllers
                 existingPassword.Value = float.TryParse(json.GetProperty("value").GetString(), out var value) ? value : 0;
                 existingPassword.Offline_crack_sec = float.TryParse(json.GetProperty("offline_crack_sec").GetString(), out var offlineCrackSec) ? offlineCrackSec : 0;
                 existingPassword.Rank_alt = int.TryParse(json.GetProperty("rank_alt").GetString(), out var rankAlt) ? rankAlt : 0;
-                existingPassword.Category_id = id;
-                existingPassword.Time_unit_id = id;
+
+                // Check if category name and time unit name are provided in the JSON
+                if (json.TryGetProperty("category_name", out var categoryNameElement))
+                {
+                    // Create or retrieve the category and associate it with the password
+                    var categoryName = categoryNameElement.GetString();
+                    var category = await _context.Categories.FirstOrDefaultAsync(c => c.Category_name == categoryName);
+                    if (category == null)
+                    {
+                        category = new Category { Category_name = categoryName };
+                        _context.Categories.Add(category);
+                    }
+                    existingPassword.Category = category;
+                }
+
+                if (json.TryGetProperty("time_unit_name", out var timeUnitNameElement))
+                {
+                    // Create or retrieve the time unit and associate it with the password
+                    var timeUnitName = timeUnitNameElement.GetString();
+                    var timeUnit = await _context.TimeUnits.FirstOrDefaultAsync(t => t.Time_unit_name == timeUnitName);
+                    if (timeUnit == null)
+                    {
+                        timeUnit = new TimeUnit { Time_unit_name = timeUnitName };
+                        _context.TimeUnits.Add(timeUnit);
+                    }
+                    existingPassword.TimeUnit = timeUnit;
+                }
 
                 // Save changes to the database
                 await _context.SaveChangesAsync();

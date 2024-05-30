@@ -7,15 +7,15 @@ const PasswordList = () => {
   const [currentPage, setCurrentPage] = useState(1);
 
   const [passwordForm, setPasswordForm] = useState({
-    passwordId: 0,
+    passwordId: '',
     passwordText: '',
-    strength: 0,
+    strength: '',
     categoryName: '',
     timeUnitName: '',
-    value: 0,
-    offlineCrackSec: 0,
-    rankAlt: 0,
-    fontSize: 0,
+    value: '',
+    offlineCrackSec: '',
+    rankAlt: '',
+    fontSize: '',
   });
 
   const fetchData = async () => {
@@ -57,53 +57,45 @@ const PasswordList = () => {
       return;
     }
 
-      if (passwordForm.passwordId > 0) {
-        // Send a PUT request to update the password
-        await axios.put(`http://localhost:5103/api/passwords/${passwordForm.passwordId}`, {
-          password_value: passwordForm.passwordText,
-          strength: passwordForm.strength,
-          font_size: passwordForm.fontSize,
-          value: passwordForm.value,
-          offline_crack_sec: passwordForm.offlineCrackSec,
-          rank_alt: passwordForm.rankAlt
-        });
-      } else {
-      // Send a POST request to add a new password
-      // Add a new category
-      const categoryResponse = await axios.post('http://localhost:5103/api/categories/add', {
+    if (passwordForm.passwordId > 0) {
+      // Send a PUT request to update the password
+      await axios.put(`http://localhost:5103/api/passwords/${passwordForm.passwordId}`, {
+        password_value: passwordForm.passwordText,
         category_name: passwordForm.categoryName,
-      });
-
-      // Add a new time unit
-      const timeUnitResponse = await axios.post('http://localhost:5103/api/timeunits/add', {
         time_unit_name: passwordForm.timeUnitName,
+        strength: passwordForm.strength.toString(),
+        font_size: passwordForm.fontSize.toString(),
+        value: passwordForm.value.toString(),
+        offline_crack_sec: passwordForm.offlineCrackSec.toString(),
+        rank_alt: passwordForm.rankAlt.toString(),
       });
-
-        await axios.post('http://localhost:5103/api/passwords/add', {
-          password_value: passwordForm.passwordText,
-          category_id: categoryResponse.data.category_id,
-          strength: passwordForm.strength,
-          font_size: passwordForm.fontSize,
-          value: passwordForm.value,
-          offline_crack_sec: passwordForm.offlineCrackSec,
-          rank_alt: passwordForm.rankAlt,
-          time_unit_id: timeUnitResponse.data.time_unit_id,
-        });
-      }
+    } else {
+      // Send a POST request to add a new password
+      await axios.post('http://localhost:5103/api/passwords/add', {
+        password_value: passwordForm.passwordText,
+        category_name: passwordForm.categoryName,
+        time_unit_name: passwordForm.timeUnitName,
+        strength: passwordForm.strength,
+        font_size: passwordForm.fontSize,
+        value: passwordForm.value,
+        offline_crack_sec: passwordForm.offlineCrackSec,
+        rank_alt: passwordForm.rankAlt,
+      });
+    }
 
       // After adding/updating, refetch data to update the list
       fetchData();
       // Clear the form
       setPasswordForm({
-        passwordId: 0,
+        passwordId: '',
         passwordText: '',
-        strength: 0,
+        strength: '',
         categoryName: '',
         timeUnitName: '',
-        value: 0,
-        offlineCrackSec: 0,
-        rankAlt: 0,
-        fontSize: 0,
+        value: '',
+        offlineCrackSec: '',
+        rankAlt: '',
+        fontSize: '',
       });
     } catch (error) {
       console.error('Error adding/updating password:', error);
@@ -112,6 +104,7 @@ const PasswordList = () => {
 
   const handleEditPassword = (password) => {
     // Set the values in the form for editing
+
     setPasswordForm({
       passwordId: password.passwordId,
       passwordText: password.passwordText,

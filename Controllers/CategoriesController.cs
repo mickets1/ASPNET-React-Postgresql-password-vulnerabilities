@@ -44,6 +44,7 @@ namespace WebAPI.Controllers
             try
             {
                 var categoryName = json.GetProperty("category_name").GetString();
+                
 
                 if (string.IsNullOrEmpty(categoryName))
                 {
